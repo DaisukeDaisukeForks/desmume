@@ -56,6 +56,8 @@ enum LuaCallID
 	LUACALL_SCRIPT_HOTKEY_15,
 	LUACALL_SCRIPT_HOTKEY_16,
 
+	LUACALL_ENTERFUNCTION,
+
 	LUACALL_COUNT
 };
 void CallRegisteredLuaFunctions(LuaCallID calltype);

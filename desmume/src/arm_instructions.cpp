@@ -5752,6 +5752,13 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_STMDB_W(const u32 i)
 	u32 c = 0, b;
 	u32 start = cpu->R[REG_POS(i,16)];
 	
+	#ifdef HAVE_LUA
+	if (REG_POS(i, 16) == 13 && BIT_N(i, 14) && PROCNUM == 0) {
+		CallRegisteredLuaFunctions(LUACALL_ENTERFUNCTION);
+		
+	}
+	#endif
+
 	for(b=0; b<16; b++)
 	{
 		if(BIT_N(i, 15-b))

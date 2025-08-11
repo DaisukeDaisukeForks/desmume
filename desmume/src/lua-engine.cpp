@@ -229,6 +229,8 @@ static const char* luaCallIDStrings [] =
 	"CALL_HOTKEY_14",
 	"CALL_HOTKEY_15",
 	"CALL_HOTKEY_16",
+
+	"CALL_ENTERFUNCTION",
 };
 
 //make Sure We Have The Right Number Of Strings
@@ -479,6 +481,18 @@ DEFINE_LUA_FUNCTION(input_registerhotkey, "keynum,func")
 		StopScriptIfFinished(luaStateToUIDMap[L->l_G->mainthread]);
 		return 1;
 	}
+}
+
+DEFINE_LUA_FUNCTION(emu_registerenterfunc, "func")
+{
+	if (!lua_isnil(L, 1))
+		 luaL_checktype(L, 1, LUA_TFUNCTION);
+	lua_settop(L, 1);
+	lua_getfield(L, LUA_REGISTRYINDEX, luaCallIDStrings[LUACALL_ENTERFUNCTION]);
+	lua_insert(L, 1);
+	lua_setfield(L, LUA_REGISTRYINDEX, luaCallIDStrings[LUACALL_ENTERFUNCTION]);
+	StopScriptIfFinished(luaStateToUIDMap[L->l_G->mainthread]);
+	return 1;
 }
 
 static int doPopup(lua_State* L, const char* deftype, const char* deficon)
@@ -4873,6 +4887,7 @@ static const struct luaL_reg emulib [] =
 	{"set3dtransform", emu_set3dtransform},
 	// alternative names
 //	{"openrom", emu_loadrom},
+	{"registerenterfunc", emu_registerenterfunc},
 	{NULL, NULL}
 };
 static const struct luaL_reg guilib [] =

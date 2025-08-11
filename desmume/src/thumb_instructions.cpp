@@ -854,6 +854,12 @@ TEMPLATE static  u32 DESMUME_FASTCALL OP_PUSH_LR(const u32 i)
 	u32 adr = cpu->R[13] - 4;
 	u32 c = 0, j;
 	
+	#ifdef HAVE_LUA
+	if (PROCNUM == 0) {
+		CallRegisteredLuaFunctions(LUACALL_ENTERFUNCTION);
+	}
+	#endif
+
 	WRITE32(cpu->mem_if->data, adr, cpu->R[14]);
 	c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_WRITE>(adr);
 	adr -= 4;
