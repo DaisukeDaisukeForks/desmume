@@ -39,7 +39,7 @@
 
 #define OPENGL_FETCH_BUFFER_COUNT	3
 
-class OGLVideoOutput;
+class OGLDisplayPresenter;
 
 enum ShaderSupportTier
 {
@@ -52,14 +52,39 @@ enum ShaderSupportTier
 	ShaderSupport_FutureTier	= 6
 };
 
-struct OGLProcessedFrameInfo
+enum OGLDisplayTextureUnitID
 {
+	OGLDisplayTextureUnitID_Video = 0,
+	OGLDisplayTextureUnitID_MasterBrightnessMode = 1,
+	OGLDisplayTextureUnitID_MasterBrightnessIntensity
+};
+
+struct OGLFrameInfoFetch
+{
+	uint64_t sequenceNumber;
 	uint8_t bufferIndex;
 	GLuint texID[2];
-	bool isMainDisplayProcessed;
-	bool isTouchDisplayProcessed;
+	GLsizei width[2];
+	GLsizei height[2];
+	float backlightIntensity[2];
+	
+	bool isNativeRender[2];
+	bool isNativeSize[2];
+	bool isDisplayEnabled[2];
+	bool isDisplayAllWhite[2];
+	bool isDisplayAllBlack[2];
+	bool isDisplayProcessPossible[2];
+	Color4u8 *srcNativeClone[2];
 };
-typedef struct OGLProcessedFrameInfo OGLProcessedFrameInfo;
+typedef struct OGLFrameInfoFetch OGLFrameInfoFetch;
+
+struct OGLFrameInfoProcessed
+{
+	uint64_t sequenceNumber;
+	GLuint texID[2];
+	float backlightIntensity[2];
+};
+typedef struct OGLFrameInfoProcessed OGLFrameInfoProcessed;
 
 class OGLContextInfo
 {
@@ -70,11 +95,13 @@ protected:
 	char _rendererString[256];
 	ShaderSupportTier _shaderSupport;
 	bool _useShader150;
+	bool _isIntegerTextureSupported;
 	
 	bool _isVBOSupported;
 	bool _isVAOSupported;
 	bool _isPBOSupported;
 	bool _isFBOSupported;
+	bool _isTBOSupported;
 	
 public:
 	OGLContextInfo();
@@ -86,11 +113,13 @@ public:
 	const char* GetRendererString() const;
 		
 	bool IsUsingShader150();
+	bool IsIntegerTextureSupported() const;
 	bool IsVBOSupported();
 	bool IsVAOSupported();
 	bool IsPBOSupported();
 	bool IsShaderSupported();
 	bool IsFBOSupported();
+	bool IsTBOSupported() const;
 	ShaderSupportTier GetShaderSupport();
 	
 	virtual void GetExtensionSetOGL(std::set<std::string> *oglExtensionSet) = 0;
@@ -114,8 +143,8 @@ protected:
 	GLuint _programID;
 	ShaderSupportTier _shaderSupport;
 	
-	virtual GLuint LoadShaderOGL(GLenum shaderType, const char *shaderProgram, bool useShader150);
-	virtual bool LinkOGL();
+	virtual GLuint _LoadShaderOGL(GLenum shaderType, const char *shaderProgram, bool useShader150, bool useIntegerTextures);
+	virtual bool _LinkOGL();
 	
 public:
 	OGLShaderProgram();
@@ -126,8 +155,8 @@ public:
 	GLuint GetVertexShaderID();
 	void SetVertexShaderOGL(const char *shaderProgram, bool useVtxColors, bool useShader150);
 	GLuint GetFragmentShaderID();
-	void SetFragmentShaderOGL(const char *shaderProgram, bool useShader150);
-	void SetVertexAndFragmentShaderOGL(const char *vertShaderProgram, const char *fragShaderProgram, bool useVtxColors, bool useShader150);
+	void SetFragmentShaderOGL(const char *shaderProgram, bool useShader150, bool useIntegerTextures);
+	void SetVertexAndFragmentShaderOGL(const char *vertShaderProgram, const char *fragShaderProgram, bool useVtxColors, bool useShader150, bool useIntegerTextures);
 	GLuint GetProgramID();
 };
 
@@ -163,6 +192,8 @@ public:
 	virtual void SetSrcSizeOGL(GLsizei w, GLsizei h);
 	GLfloat GetScale();
 	void SetScaleOGL(GLfloat scale, void *buffer);
+	GLsizei GetDstWidth() const;
+	GLsizei GetDstHeight() const;
 	virtual GLuint RunFilterOGL(GLuint srcTexID);
 	void DownloadDstBufferOGL(uint32_t *dstBuffer, size_t lineOffset, size_t readLineCount);
 };
@@ -261,7 +292,7 @@ public:
 class OGLVideoLayer
 {
 protected:
-	OGLVideoOutput *_output;
+	OGLDisplayPresenter *_output;
 	bool _isVisible;
 	bool _needUpdateViewport;
 	bool _needUpdateRotationScale;
@@ -303,7 +334,7 @@ protected:
 	void _UpdateVerticesOGL();
 	
 public:
-	OGLHUDLayer(OGLVideoOutput *oglVO);
+	OGLHUDLayer(OGLDisplayPresenter *oglVO);
 	virtual ~OGLHUDLayer();
 	
 	void CopyHUDFont(const FT_Face &fontFace, const size_t glyphSize, const size_t glyphTileSize, GlyphInfo *glyphInfo);
@@ -326,10 +357,11 @@ protected:
 	
 	void _UpdateRotationScaleOGL();
 	void _UpdateVerticesOGL();
+	GLuint _ProcessDisplayByID_OGL(NDSDisplayID displayID, GLuint texID, size_t bufferIndex, bool useDeposterize, VideoFilterTypeID filterID, VideoFilter *cpuFilter, GLsizei &inoutWidth, GLsizei &inoutHeight);
 	
 public:
 	OGLDisplayLayer() {};
-	OGLDisplayLayer(OGLVideoOutput *oglVO);
+	OGLDisplayLayer(OGLDisplayPresenter *oglVO);
 	virtual ~OGLDisplayLayer();
 	
 	OutputFilterTypeID SetOutputFilterOGL(const OutputFilterTypeID filterID);
@@ -346,23 +378,51 @@ class OGLClientSharedData
 {
 protected:
 	OGLContextInfo *_contextInfo;
+	
+	GLuint _vboVideoProcVtxID;
+	GLuint _vboVideoProcTexCoordNativeID;
+	GLuint _vboVideoProcTexCoordCustomID;
+	GLuint _vaoVideoProcNativeID;
+	GLuint _vaoVideoProcCustomID;
+	GLuint _fboDisplayNativeID[2];
+	GLuint _fboDisplayCustomID[2];
+	
 	GLenum _fetchColorFormatOGL;
 	GLuint _texDisplayFetchNative[2][OPENGL_FETCH_BUFFER_COUNT];
 	GLuint _texDisplayFetchCustom[2][OPENGL_FETCH_BUFFER_COUNT];
+	GLuint _texDisplayPostprocessNative[2];
+	GLuint _texDisplayPostprocessCustom[2];
+	GLuint _texDisplayAllWhite;
+	GLuint _texDisplayAllBlack;
+	
+	GLuint _texMasterBrightnessMode[2][OPENGL_FETCH_BUFFER_COUNT];
+	GLuint _texMasterBrightnessIntensity[2][OPENGL_FETCH_BUFFER_COUNT];
 	
 	GLuint _texLQ2xLUT;
 	GLuint _texHQ2xLUT;
 	GLuint _texHQ3xLUT;
 	GLuint _texHQ4xLUT;
 	
-	GLuint _texFetch[2];
+	GLuint _texFetchSelected[2];
 	
+	bool _canProcessFetchOnGPU;
+	bool _preferCPUVideoProcessing;
 	bool _useDirectToCPUFilterPipeline;
-	uint32_t *_srcNativeCloneMaster;
-	uint32_t *_srcNativeClone[2][OPENGL_FETCH_BUFFER_COUNT];
+	Color4u8 *_srcNativeCloneMaster;
+	Color4u8 *_srcNativeClone[2][OPENGL_FETCH_BUFFER_COUNT];
 	pthread_rwlock_t _srcCloneRWLock[2][OPENGL_FETCH_BUFFER_COUNT];
-	pthread_rwlock_t _texFetchRWLock[2];
 	bool _srcCloneNeedsUpdate[2][OPENGL_FETCH_BUFFER_COUNT];
+	
+	OGLShaderProgram *_programFetch666ConvertOnly;
+	OGLShaderProgram *_programFetch666WithMB;
+	OGLShaderProgram *_programFetch888WithMB;
+	GLint _vtxTexCoordBufferNative[8];
+	GLint _vtxTexCoordBufferCustom[8];
+	
+	pthread_rwlock_t _fetchInfoRWLock;
+	OGLFrameInfoFetch _fetchInfo;
+	
+	GLuint _FetchFromDisplayID_OGL(const NDSDisplayInfo &currentDisplayInfo, NDSDisplayID displayID, GLuint texVideoID, GLuint texMBModeID, GLuint texMBIntensityID);
 	
 public:
 	OGLClientSharedData();
@@ -371,15 +431,21 @@ public:
 	void SetContextInfo(OGLContextInfo *contextInfo);
 	OGLContextInfo* GetContextInfo() const;
 	
+	bool CanProcessFetchOnGPU() const;
+	
+	void SetPreferCPUVideoProcessing(bool prefersCPUVideoProcessing);
+	bool PreferCPUVideoProcessing() const;
+	
 	void SetUseDirectToCPUFilterPipeline(bool willUseDirectCPU);
 	bool UseDirectToCPUFilterPipeline() const;
 	
-	virtual GLuint GetFetchTexture(const NDSDisplayID displayID);
-	virtual void SetFetchTexture(const NDSDisplayID displayID, GLuint texID);
+	OGLFrameInfoFetch GetFetchInfo();
 	
-	uint32_t* GetSrcClone(const NDSDisplayID displayID, const u8 bufferIndex) const;
+	Color4u8* GetSrcClone(const NDSDisplayID displayID, const u8 bufferIndex) const;
 	GLuint GetTexNative(const NDSDisplayID displayID, const u8 bufferIndex) const;
 	GLuint GetTexCustom(const NDSDisplayID displayID, const u8 bufferIndex) const;
+	GLuint GetTexDisplayAllWhite() const;
+	GLuint GetTexDisplayAllBlack() const;
 	
 	// For lack of a better place, we're putting the HQnx LUTs in the fetch object because
 	// we know that it will be shared for all display views.
@@ -388,20 +454,20 @@ public:
 	GLuint GetTexHQ3xLUT() const;
 	GLuint GetTexHQ4xLUT() const;
 	
-	void CopyFromSrcClone(uint32_t *dstBufferPtr, const NDSDisplayID displayID, const u8 bufferIndex);
+	void CopyFromSrcClone(Color4u8 *dstBufferPtr, const NDSDisplayID displayID, const u8 bufferIndex);
 	void FetchNativeDisplayToSrcClone(const NDSDisplayInfo *displayInfoList, const NDSDisplayID displayID, const u8 bufferIndex, bool needsLock);
 	void FetchCustomDisplayToSrcClone(const NDSDisplayInfo *displayInfoList, const NDSDisplayID displayID, const u8 bufferIndex, bool needsLock);
 	
 	// OpenGL-specific functions that must be called in response to their
 	// corresponding GPUClientFetchObject methods.
-	void InitOGL();
+	void InitOGL(const NDSDisplayInfo *displayInfoList, const NDSDisplayInfo &currentDisplayInfo);
 	void SetFetchBuffersOGL(const NDSDisplayInfo *displayInfoList, const NDSDisplayInfo &currentDisplayInfo);
 	void FetchFromBufferIndexOGL(const u8 index, const NDSDisplayInfo &currentDisplayInfo);
 	void FetchNativeDisplayByID_OGL(const NDSDisplayInfo *displayInfoList, const NDSDisplayID displayID, const u8 bufferIndex);
 	void FetchCustomDisplayByID_OGL(const NDSDisplayInfo *displayInfoList, const NDSDisplayID displayID, const u8 bufferIndex);
 };
 
-class OGLVideoOutput : public ClientDisplay3DPresenter
+class OGLDisplayPresenter : public ClientDisplay3DPresenter
 {
 protected:
 	OGLContextInfo *_contextInfo;
@@ -413,7 +479,7 @@ protected:
 	GLuint _texCPUFilterDstID[2];
 	GLuint _fboFrameCopyID;
 	
-	OGLProcessedFrameInfo _processedFrameInfo;
+	OGLFrameInfoProcessed _processedFrameInfo;
 	
 	std::vector<OGLVideoLayer *> *_layerList;
 	
@@ -430,8 +496,8 @@ protected:
 	virtual void _ResizeCPUPixelScaler(const VideoFilterTypeID filterID);
 	
 public:
-	OGLVideoOutput();
-	~OGLVideoOutput();
+	OGLDisplayPresenter();
+	~OGLDisplayPresenter();
 	
 	OGLContextInfo* GetContextInfo();
 	
@@ -455,16 +521,12 @@ public:
 	
 	// Client view interface
 	virtual void ProcessDisplays();
-	virtual void CopyFrameToBuffer(uint32_t *dstBuffer);
+	virtual void CopyFrameToBuffer(Color4u8 *dstBuffer);
 	virtual void PrerenderStateSetupOGL();
 	virtual void RenderFrameOGL(bool isRenderingFlipped);
 	
-	virtual const OGLProcessedFrameInfo& GetProcessedFrameInfo();
-	virtual void SetProcessedFrameInfo(const OGLProcessedFrameInfo &processedInfo);
-	
-	virtual void WriteLockEmuFramebuffer(const uint8_t bufferIndex);
-	virtual void ReadLockEmuFramebuffer(const uint8_t bufferIndex);
-	virtual void UnlockEmuFramebuffer(const uint8_t bufferIndex);
+	virtual const OGLFrameInfoProcessed& GetFrameInfoProcessed();
+	virtual void SetFrameInfoProcessed(const OGLFrameInfoProcessed &processedInfo);
 };
 
 extern void (*glBindVertexArrayDESMUME)(GLuint id);

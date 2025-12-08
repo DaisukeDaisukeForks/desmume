@@ -1,5 +1,5 @@
 /*
-	Copyright (C) 2017-2022 DeSmuME team
+	Copyright (C) 2017-2025 DeSmuME team
 
 	This file is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -46,15 +46,9 @@ class MacOGLDisplayView;
 
 class MacOGLClientSharedData : public OGLClientSharedData
 {
-protected:
-	apple_unfairlock_t _unfairlockTexFetch[2];
-	
 public:
 	MacOGLClientSharedData();
 	~MacOGLClientSharedData();
-	
-	virtual GLuint GetFetchTexture(const NDSDisplayID displayID);
-	virtual void SetFetchTexture(const NDSDisplayID displayID, GLuint texID);
 };
 
 class MacOGLClientFetchObject : public MacGPUFetchObjectDisplayLink
@@ -75,8 +69,13 @@ public:
 	NSOpenGLContext* GetNSContext() const;
 	CGLContextObj GetContext() const;
 	
+	bool CanProcessFetchOnGPU() const;
+	
 	void FetchNativeDisplayToSrcClone(const NDSDisplayID displayID, const u8 bufferIndex, bool needsLock);
 	void FetchCustomDisplayToSrcClone(const NDSDisplayID displayID, const u8 bufferIndex, bool needsLock);
+	
+	// MacGPUEventHandlerAsync methods
+	virtual void SetPauseState(bool theState);
 	
 	// GPUClientFetchObject methods
 	virtual void Init();
@@ -84,7 +83,7 @@ public:
 	virtual void FetchFromBufferIndex(const u8 index);
 };
 
-class MacOGLDisplayPresenter : public OGLVideoOutput
+class MacOGLDisplayPresenter : public OGLDisplayPresenter
 {
 private:
 	void __InstanceInit(MacOGLClientFetchObject *fetchObject);
@@ -120,14 +119,10 @@ public:
 	// Client view interface
 	virtual void LoadDisplays();
 	virtual void ProcessDisplays();
-	virtual void CopyFrameToBuffer(uint32_t *dstBuffer);
+	virtual void CopyFrameToBuffer(Color4u8 *dstBuffer);
 	
-	virtual const OGLProcessedFrameInfo& GetProcessedFrameInfo();
-	virtual void SetProcessedFrameInfo(const OGLProcessedFrameInfo &processedInfo);
-	
-	virtual void WriteLockEmuFramebuffer(const uint8_t bufferIndex);
-	virtual void ReadLockEmuFramebuffer(const uint8_t bufferIndex);
-	virtual void UnlockEmuFramebuffer(const uint8_t bufferIndex);
+	virtual const OGLFrameInfoProcessed& GetFrameInfoProcessed();
+	virtual void SetFrameInfoProcessed(const OGLFrameInfoProcessed &processedInfo);
 };
 
 class MacOGLDisplayView : public MacDisplayLayeredView

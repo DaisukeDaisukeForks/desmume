@@ -1359,6 +1359,8 @@ typedef struct
 	GPUEngineTargetState target;
 } GPUEngineCompositorInfo;
 
+class GPUSubsystem;
+
 class GPUEngineBase
 {
 protected:
@@ -1398,6 +1400,8 @@ protected:
 	
 	CACHE_ALIGN u8 _deferredIndexNative[GPU_FRAMEBUFFER_NATIVE_WIDTH * 4];
 	CACHE_ALIGN u16 _deferredColorNative[GPU_FRAMEBUFFER_NATIVE_WIDTH * 4];
+	
+	GPUSubsystem *_gpuSystem;
 	
 	bool _needExpandSprColorCustom;
 	u16 *_sprColorCustom;
@@ -1536,6 +1540,9 @@ public:
 	GPUEngineBase();
 	virtual ~GPUEngineBase();
 	
+	GPUSubsystem* GetGPUSystem();
+	void SetGPUSystem(GPUSubsystem *theGPU);
+	
 	virtual void Reset();
 	
 	void SetupBuffers();
@@ -1609,19 +1616,12 @@ public:
 
 class GPUEngineA : public GPUEngineBase
 {
-private:
-	GPUEngineA();
-	~GPUEngineA();
-	
 protected:
 	CACHE_ALIGN u16 _fifoLine16[GPU_FRAMEBUFFER_NATIVE_WIDTH];
 	CACHE_ALIGN Color4u8 _fifoLine32[GPU_FRAMEBUFFER_NATIVE_WIDTH];
 	
 	CACHE_ALIGN u16 _VRAMNativeBlockCaptureCopy[GPU_FRAMEBUFFER_NATIVE_WIDTH * GPU_VRAM_BLOCK_LINES * 4];
 	u16 *_VRAMNativeBlockCaptureCopyPtr[4];
-	
-	Color4u8 *_3DFramebufferMain;
-	u16 *_3DFramebuffer16;
 	
 	u16 *_VRAMNativeBlockPtr[4];
 	void *_VRAMCustomBlockPtr[4];
@@ -1674,14 +1674,14 @@ protected:
 	void _HandleDisplayModeMainMemory(const GPUEngineLineInfo &lineInfo);
 	
 public:
-	static GPUEngineA* Allocate();
-	void FinalizeAndDeallocate();
+	static void* operator new(size_t size);
+	static void operator delete(void *p);
+	GPUEngineA();
+	virtual ~GPUEngineA();
 	
 	void ParseReg_DISPCAPCNT();
 	bool IsLineCaptureNative(const size_t blockID, const size_t blockLine);
 	void* GetCustomVRAMBlockPtr(const size_t blockID);
-	Color4u8* Get3DFramebufferMain() const;
-	u16* Get3DFramebuffer16() const;
 	virtual void AllocateWorkingBuffers(NDSColorFormat requestedColorFormat, size_t w, size_t h);
 	
 	bool WillRender3DLayer();
@@ -1702,13 +1702,11 @@ public:
 
 class GPUEngineB : public GPUEngineBase
 {
-private:
-	GPUEngineB();
-	~GPUEngineB();
-	
 public:
-	static GPUEngineB* Allocate();
-	void FinalizeAndDeallocate();
+	static void* operator new(size_t size);
+	static void operator delete(void *p);
+	GPUEngineB();
+	virtual ~GPUEngineB();
 	
 	virtual void Reset();
 	
@@ -1719,6 +1717,7 @@ class NDSDisplay
 {
 private:
 	NDSDisplayID _ID;
+	GPUSubsystem *_gpuSystem;
 	GPUEngineBase *_gpuEngine;
 	
 	// Native line tracking must be handled at the display level in order to account for
@@ -1860,6 +1859,10 @@ private:
 	void *_customVRAM;
 	void *_customVRAMBlank;
 	
+	NDSColorFormat _framebufferColorFormatPending;
+	size_t _framebufferWidthPending;
+	size_t _framebufferHeightPending;
+	size_t _framebufferPageCountPending;
 	void *_masterFramebuffer;
 	u32 *_masterWorkingNativeBuffer32;
 	
@@ -1867,6 +1870,7 @@ private:
 	
 	void _UpdateFPSRender3D();
 	void _AllocateFramebuffers(NDSColorFormat outputFormat, size_t w, size_t h, size_t pageCount);
+	void _ApplyFramebufferSettings();
 	
 	void _DownscaleAndConvertForSavestate(const NDSDisplayID displayID, const void *srcBuffer, u16 *dstBuffer);
 	void _ConvertAndUpscaleForLoadstate(const NDSDisplayID displayID, const u16 *srcBuffer, void *dstBuffer);

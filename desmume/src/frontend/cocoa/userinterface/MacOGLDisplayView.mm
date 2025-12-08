@@ -81,32 +81,12 @@
 
 MacOGLClientSharedData::MacOGLClientSharedData()
 {
-	_unfairlockTexFetch[NDSDisplayID_Main] = apple_unfairlock_create();
-	_unfairlockTexFetch[NDSDisplayID_Touch] = apple_unfairlock_create();
+	// Do nothing. This class is a platform-specific placeholder.
 }
 
 MacOGLClientSharedData::~MacOGLClientSharedData()
 {
-	apple_unfairlock_destroy(this->_unfairlockTexFetch[NDSDisplayID_Main]);
-	this->_unfairlockTexFetch[NDSDisplayID_Main] = NULL;
-	apple_unfairlock_destroy(this->_unfairlockTexFetch[NDSDisplayID_Touch]);
-	this->_unfairlockTexFetch[NDSDisplayID_Touch] = NULL;
-}
-
-GLuint MacOGLClientSharedData::GetFetchTexture(const NDSDisplayID displayID)
-{
-	apple_unfairlock_lock(this->_unfairlockTexFetch[displayID]);
-	const GLuint texFetchID = this->OGLClientSharedData::GetFetchTexture(displayID);
-	apple_unfairlock_unlock(this->_unfairlockTexFetch[displayID]);
-	
-	return texFetchID;
-}
-
-void MacOGLClientSharedData::SetFetchTexture(const NDSDisplayID displayID, GLuint texID)
-{
-	apple_unfairlock_lock(this->_unfairlockTexFetch[displayID]);
-	this->OGLClientSharedData::SetFetchTexture(displayID, texID);
-	apple_unfairlock_unlock(this->_unfairlockTexFetch[displayID]);
+	// Do nothing. This class is a platform-specific placeholder.
 }
 
 #pragma mark -
@@ -256,6 +236,11 @@ CGLContextObj MacOGLClientFetchObject::GetContext() const
 	return this->_context;
 }
 
+bool MacOGLClientFetchObject::CanProcessFetchOnGPU() const
+{
+	return ((MacOGLClientSharedData *)this->_clientData)->CanProcessFetchOnGPU();
+}
+
 void MacOGLClientFetchObject::FetchNativeDisplayToSrcClone(const NDSDisplayID displayID, const u8 bufferIndex, bool needsLock)
 {
 	MacOGLClientSharedData *sharedData = (MacOGLClientSharedData *)this->_clientData;
@@ -268,13 +253,32 @@ void MacOGLClientFetchObject::FetchCustomDisplayToSrcClone(const NDSDisplayID di
 	sharedData->FetchCustomDisplayToSrcClone(this->_fetchDisplayInfo, displayID, bufferIndex, needsLock);
 }
 
+void MacOGLClientFetchObject::SetPauseState(bool theState)
+{
+	if (theState == this->_pauseState)
+	{
+		return;
+	}
+	
+	if (theState)
+	{
+		CGLContextObj prevContext = CGLGetCurrentContext();
+		CGLSetCurrentContext(this->_context);
+		glFinish();
+		CGLSetCurrentContext(prevContext);
+	}
+	
+	this->MacGPUFetchObjectDisplayLink::SetPauseState(theState);
+}
+
 void MacOGLClientFetchObject::Init()
 {
 	MacOGLClientSharedData *sharedData = (MacOGLClientSharedData *)this->_clientData;
+	const NDSDisplayInfo &currentDisplayInfo = GPU->GetDisplayInfo();
 	
 	CGLContextObj prevContext = CGLGetCurrentContext();
 	CGLSetCurrentContext(this->_context);
-	sharedData->InitOGL();
+	sharedData->InitOGL(this->_fetchDisplayInfo, currentDisplayInfo);
 	CGLSetCurrentContext(prevContext);
 	
 	this->MacGPUFetchObjectDisplayLink::Init();
@@ -295,8 +299,11 @@ void MacOGLClientFetchObject::FetchFromBufferIndex(const u8 index)
 {
 	MacOGLClientSharedData *sharedData = (MacOGLClientSharedData *)this->_clientData;
 	
-	const bool willUseDirectCPU = (this->GetNumberViewsUsingDirectToCPUFiltering() > 0);
-	sharedData->SetUseDirectToCPUFilterPipeline(willUseDirectCPU);
+	const bool preferCPUVideoProcessing = (this->GetNumberViewsPreferringCPUVideoProcessing() > 0);
+	sharedData->SetPreferCPUVideoProcessing(preferCPUVideoProcessing);
+	
+	const bool willFilterDirectToCPU = (this->GetNumberViewsUsingDirectToCPUFiltering() > 0);
+	sharedData->SetUseDirectToCPUFilterPipeline(willFilterDirectToCPU);
 	
 	semaphore_wait( this->SemaphoreFramebufferPageAtIndex(index) );
 	this->SetFramebufferState(ClientDisplayBufferState_Reading, index);
@@ -305,10 +312,10 @@ void MacOGLClientFetchObject::FetchFromBufferIndex(const u8 index)
 	CGLSetCurrentContext(this->_context);
 	
 	this->GPUClientFetchObject::FetchFromBufferIndex(index);
-	glFlush();
 	
 	const NDSDisplayInfo &currentDisplayInfo = this->GetFetchDisplayInfoForBufferIndex(index);
 	sharedData->FetchFromBufferIndexOGL(index, currentDisplayInfo);
+	glFlush();
 	
 	CGLUnlockContext(this->_context);
 	
@@ -479,7 +486,7 @@ void MacOGLDisplayPresenter::Init()
 		this->_contextInfo = new OGLContextInfo_Legacy;
 	}
 	
-	this->OGLVideoOutput::Init();
+	this->OGLDisplayPresenter::Init();
 	CGLSetCurrentContext(prevContext);
 }
 
@@ -507,7 +514,7 @@ void MacOGLDisplayPresenter::LoadHUDFont()
 {
 	CGLLockContext(this->_context);
 	CGLSetCurrentContext(this->_context);
-	this->OGLVideoOutput::LoadHUDFont();
+	this->OGLDisplayPresenter::LoadHUDFont();
 	CGLUnlockContext(this->_context);
 }
 
@@ -515,7 +522,7 @@ void MacOGLDisplayPresenter::SetScaleFactor(const double scaleFactor)
 {
 	CGLLockContext(this->_context);
 	CGLSetCurrentContext(this->_context);
-	this->OGLVideoOutput::SetScaleFactor(scaleFactor);
+	this->OGLDisplayPresenter::SetScaleFactor(scaleFactor);
 	CGLUnlockContext(this->_context);
 }
 
@@ -523,7 +530,7 @@ void MacOGLDisplayPresenter::SetFiltersPreferGPU(const bool preferGPU)
 {
 	CGLLockContext(this->_context);
 	CGLSetCurrentContext(this->_context);
-	this->OGLVideoOutput::SetFiltersPreferGPU(preferGPU);
+	this->OGLDisplayPresenter::SetFiltersPreferGPU(preferGPU);
 	CGLUnlockContext(this->_context);
 }
 
@@ -531,7 +538,7 @@ void MacOGLDisplayPresenter::SetOutputFilter(const OutputFilterTypeID filterID)
 {
 	CGLLockContext(this->_context);
 	CGLSetCurrentContext(this->_context);
-	this->OGLVideoOutput::SetOutputFilter(filterID);
+	this->OGLDisplayPresenter::SetOutputFilter(filterID);
 	CGLUnlockContext(this->_context);
 }
 
@@ -539,7 +546,7 @@ void MacOGLDisplayPresenter::SetPixelScaler(const VideoFilterTypeID filterID)
 {
 	CGLLockContext(this->_context);
 	CGLSetCurrentContext(this->_context);
-	this->OGLVideoOutput::SetPixelScaler(filterID);
+	this->OGLDisplayPresenter::SetPixelScaler(filterID);
 	CGLUnlockContext(this->_context);
 }
 
@@ -548,7 +555,7 @@ void MacOGLDisplayPresenter::LoadDisplays()
 {
 	CGLLockContext(this->_context);
 	CGLSetCurrentContext(this->_context);
-	this->OGLVideoOutput::LoadDisplays();
+	this->OGLDisplayPresenter::LoadDisplays();
 	CGLUnlockContext(this->_context);
 }
 
@@ -556,50 +563,32 @@ void MacOGLDisplayPresenter::ProcessDisplays()
 {
 	CGLLockContext(this->_context);
 	CGLSetCurrentContext(this->_context);
-	this->OGLVideoOutput::ProcessDisplays();
+	this->OGLDisplayPresenter::ProcessDisplays();
 	CGLUnlockContext(this->_context);
 }
 
-void MacOGLDisplayPresenter::CopyFrameToBuffer(uint32_t *dstBuffer)
+void MacOGLDisplayPresenter::CopyFrameToBuffer(Color4u8 *dstBuffer)
 {
 	CGLLockContext(this->_context);
 	CGLSetCurrentContext(this->_context);
-	this->OGLVideoOutput::CopyFrameToBuffer(dstBuffer);
+	this->OGLDisplayPresenter::CopyFrameToBuffer(dstBuffer);
 	CGLUnlockContext(this->_context);
 }
 
-const OGLProcessedFrameInfo& MacOGLDisplayPresenter::GetProcessedFrameInfo()
+const OGLFrameInfoProcessed& MacOGLDisplayPresenter::GetFrameInfoProcessed()
 {
 	apple_unfairlock_lock(this->_unfairlockProcessedInfo);
-	const OGLProcessedFrameInfo &processedInfo = this->OGLVideoOutput::GetProcessedFrameInfo();
+	const OGLFrameInfoProcessed &processedInfo = this->OGLDisplayPresenter::GetFrameInfoProcessed();
 	apple_unfairlock_unlock(this->_unfairlockProcessedInfo);
 	
 	return processedInfo;
 }
 
-void MacOGLDisplayPresenter::SetProcessedFrameInfo(const OGLProcessedFrameInfo &processedInfo)
+void MacOGLDisplayPresenter::SetFrameInfoProcessed(const OGLFrameInfoProcessed &processedInfo)
 {
 	apple_unfairlock_lock(this->_unfairlockProcessedInfo);
-	this->OGLVideoOutput::SetProcessedFrameInfo(processedInfo);
+	this->OGLDisplayPresenter::SetFrameInfoProcessed(processedInfo);
 	apple_unfairlock_unlock(this->_unfairlockProcessedInfo);
-}
-
-void MacOGLDisplayPresenter::WriteLockEmuFramebuffer(const uint8_t bufferIndex)
-{
-	MacOGLClientFetchObject &fetchObj = (MacOGLClientFetchObject &)this->GetFetchObject();
-	semaphore_wait( fetchObj.SemaphoreFramebufferPageAtIndex(bufferIndex) );
-}
-
-void MacOGLDisplayPresenter::ReadLockEmuFramebuffer(const uint8_t bufferIndex)
-{
-	MacOGLClientFetchObject &fetchObj = (MacOGLClientFetchObject &)this->GetFetchObject();
-	semaphore_wait( fetchObj.SemaphoreFramebufferPageAtIndex(bufferIndex) );
-}
-
-void MacOGLDisplayPresenter::UnlockEmuFramebuffer(const uint8_t bufferIndex)
-{
-	MacOGLClientFetchObject &fetchObj = (MacOGLClientFetchObject &)this->GetFetchObject();
-	semaphore_signal( fetchObj.SemaphoreFramebufferPageAtIndex(bufferIndex) );
 }
 
 #pragma mark -
