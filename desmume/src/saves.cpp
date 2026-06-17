@@ -1239,7 +1239,16 @@ static bool ReadStateChunks(EMUFILE &is, s32 totalsize)
 			case 91: if(!gfx3d_loadstate(is,size)) ret=false; break;
 			case 100: if(!ReadStateChunk(is,SF_MOVIE, size)) ret=false; break;
 			case 101: if(!mov_loadstate(is, size)) ret=false; break;
-			case 111: if(!wifiHandler->LoadState(is,size)) ret=false; break;
+			case 111:
+#ifdef __EMSCRIPTEN__
+				// The browser port does not expose Wi-Fi emulation. Some desktop
+				// states still contain this chunk, so skip it instead of entering
+				// the Wi-Fi handler's native backend.
+				break;
+#else
+				if(!wifiHandler->LoadState(is,size)) ret=false;
+				break;
+#endif
 			case 120: if(!ReadStateChunk(is,SF_RTC,size)) ret=false; break;
 			case 130: if(!ReadStateChunk(is,SF_INFO,size)) ret=false; else haveInfo=true; break;
 			case 140: if(!s_slot1_loadstate(is, size)) ret=false; break;
