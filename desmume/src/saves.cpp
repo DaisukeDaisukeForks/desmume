@@ -77,6 +77,11 @@ savestates_t savestates[NB_STATES];
 #define SAVESTATE_VERSION       12
 static const char* magic = "DeSmuME SState\0";
 
+#ifdef __EMSCRIPTEN__
+extern "C" int wasmLastStateChunk = 0;
+extern "C" int wasmLastStatePhase = 0;
+#endif
+
 //a savestate chunk loader can set this if it wants to permit a silent failure (for compatibility)
 static bool SAV_silent_fail_flag;
 
@@ -1221,6 +1226,10 @@ static bool ReadStateChunks(EMUFILE &is, s32 totalsize)
 		if (t == 0xFFFFFFFF) break;
 		if (!is.read_32LE(size))  { ret=false; break; }
 		u32 endPos = is.ftell() + size;
+#ifdef __EMSCRIPTEN__
+		wasmLastStateChunk = (int)t;
+		wasmLastStatePhase = 10;
+#endif
 		
 		switch(t)
 		{
