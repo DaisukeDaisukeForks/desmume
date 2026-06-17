@@ -39,6 +39,10 @@
 #include "arm_jit.h"
 #endif
 
+#ifdef __EMSCRIPTEN__
+extern "C" int wasmDebuggerShouldBreak(int proc, int kind, u32 address, int size, u32 value);
+#endif
+
 template<u32> static u32 armcpu_prefetch();
 
 FORCEINLINE u32 armcpu_prefetch(armcpu_t *armcpu) { 
@@ -496,6 +500,14 @@ static BOOL (DESMUME_FASTCALL* test_conditions[])(Status_Reg CPSR)= {
 void armcpu_exception(armcpu_t *cpu, u32 number)
 {
 	Mode cpumode = USR;
+#ifdef __EMSCRIPTEN__
+	if (number == EXCEPTION_DATA_ABORT)
+		wasmDebuggerShouldBreak(cpu->proc_ID == ARMCPU_ARM7 ? 1 : 0, 3, cpu->instruct_adr, 4, cpu->instruction);
+	else if (number == EXCEPTION_PREFETCH_ABORT)
+		wasmDebuggerShouldBreak(cpu->proc_ID == ARMCPU_ARM7 ? 1 : 0, 4, cpu->instruct_adr, 4, cpu->instruction);
+	else if (number == EXCEPTION_UNDEFINED_INSTRUCTION)
+		wasmDebuggerShouldBreak(cpu->proc_ID == ARMCPU_ARM7 ? 1 : 0, 5, cpu->instruct_adr, 4, cpu->instruction);
+#endif
 	switch(number)
 	{
 	case EXCEPTION_RESET: cpumode = SVC; break;
@@ -573,6 +585,9 @@ BOOL armcpu_irqException(armcpu_t *armcpu)
 u32 TRAPUNDEF(armcpu_t* cpu)
 {
 	INFO("ARM%c: Undefined instruction: 0x%08X PC=0x%08X\n", cpu->proc_ID?'7':'9', cpu->instruction, cpu->instruct_adr);
+#ifdef __EMSCRIPTEN__
+	wasmDebuggerShouldBreak(cpu->proc_ID == ARMCPU_ARM7 ? 1 : 0, 5, cpu->instruct_adr, 4, cpu->instruction);
+#endif
 
 	if (((cpu->intVector != 0) ^ (cpu->proc_ID == ARMCPU_ARM9)))
 	{
@@ -669,6 +684,10 @@ u32 armcpu_exec()
 	//cFetch = armcpu_prefetch(&ARMPROC);
 
 	//printf("%d: %08X\n",PROCNUM,ARMPROC.instruct_adr);
+#ifdef __EMSCRIPTEN__
+	if (wasmDebuggerShouldBreak(PROCNUM, 0, ARMPROC.instruct_adr, ARMPROC.CPSR.bits.T ? 2 : 4, ARMPROC.instruction))
+		return 1;
+#endif
 
 	if(ARMPROC.CPSR.bits.T == 0)
 	{

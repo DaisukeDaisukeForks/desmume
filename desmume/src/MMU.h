@@ -34,6 +34,10 @@
 #include "frontend/interface/interface.h"
 #endif
 
+#ifdef __EMSCRIPTEN__
+extern "C" int wasmDebuggerShouldBreak(int proc, int kind, u32 address, int size, u32 value);
+#endif
+
 #ifdef HAVE_JIT
 #include "arm_jit.h"
 #endif
@@ -700,6 +704,10 @@ FORCEINLINE void CheckMemoryDebugEvent(EDEBUG_EVENT event, const MMU_ACCESS_TYPE
 FORCEINLINE u8 _MMU_read08(const int PROCNUM, const MMU_ACCESS_TYPE AT, const u32 addr)
 {
 	CheckMemoryDebugEvent(DEBUG_EVENT_READ,AT,PROCNUM,addr,8,0);
+#ifdef __EMSCRIPTEN__
+	if (AT != MMU_AT_DEBUG)
+		wasmDebuggerShouldBreak(PROCNUM, 1, addr, 1, 0);
+#endif
 
 	//special handling to un-protect the ARM7 bios during debug reading
 	if(PROCNUM == ARMCPU_ARM7 && AT == MMU_AT_DEBUG && addr<0x00004000)
@@ -748,6 +756,10 @@ FORCEINLINE u8 _MMU_read08(const int PROCNUM, const MMU_ACCESS_TYPE AT, const u3
 FORCEINLINE u16 _MMU_read16(const int PROCNUM, const MMU_ACCESS_TYPE AT, const u32 addr) 
 {
 	CheckMemoryDebugEvent(DEBUG_EVENT_READ,AT,PROCNUM,addr,16,0);
+#ifdef __EMSCRIPTEN__
+	if (AT != MMU_AT_DEBUG)
+		wasmDebuggerShouldBreak(PROCNUM, 1, addr, 2, 0);
+#endif
 
 	//special handling to un-protect the ARM7 bios during debug reading
 	if(PROCNUM == ARMCPU_ARM7 && AT == MMU_AT_DEBUG && addr<0x00004000)
@@ -809,6 +821,10 @@ dunno:
 FORCEINLINE u32 _MMU_read32(const int PROCNUM, const MMU_ACCESS_TYPE AT, const u32 addr)
 {
 	CheckMemoryDebugEvent(DEBUG_EVENT_READ,AT,PROCNUM,addr,32,0);
+#ifdef __EMSCRIPTEN__
+	if (AT != MMU_AT_DEBUG)
+		wasmDebuggerShouldBreak(PROCNUM, 1, addr, 4, 0);
+#endif
 
 	//special handling to un-protect the ARM7 bios during debug reading
 	if(PROCNUM == ARMCPU_ARM7 && AT == MMU_AT_DEBUG && addr<0x00004000)
@@ -886,6 +902,10 @@ dunno:
 FORCEINLINE void _MMU_write08(const int PROCNUM, const MMU_ACCESS_TYPE AT, const u32 addr, u8 val)
 {
 	CheckMemoryDebugEvent(DEBUG_EVENT_WRITE,AT,PROCNUM,addr,8,val);
+#ifdef __EMSCRIPTEN__
+	if (AT != MMU_AT_DEBUG)
+		wasmDebuggerShouldBreak(PROCNUM, 2, addr, 1, val);
+#endif
 
 	//special handling for DMA: discard writes to TCM
 	if(PROCNUM==ARMCPU_ARM9 && AT == MMU_AT_DMA)
@@ -944,6 +964,10 @@ FORCEINLINE void _MMU_write08(const int PROCNUM, const MMU_ACCESS_TYPE AT, const
 FORCEINLINE void _MMU_write16(const int PROCNUM, const MMU_ACCESS_TYPE AT, const u32 addr, u16 val)
 {
 	CheckMemoryDebugEvent(DEBUG_EVENT_WRITE,AT,PROCNUM,addr,16,val);
+#ifdef __EMSCRIPTEN__
+	if (AT != MMU_AT_DEBUG)
+		wasmDebuggerShouldBreak(PROCNUM, 2, addr, 2, val);
+#endif
 
 	//special handling for DMA: discard writes to TCM
 	if(PROCNUM==ARMCPU_ARM9 && AT == MMU_AT_DMA)
@@ -999,6 +1023,10 @@ FORCEINLINE void _MMU_write16(const int PROCNUM, const MMU_ACCESS_TYPE AT, const
 FORCEINLINE void _MMU_write32(const int PROCNUM, const MMU_ACCESS_TYPE AT, const u32 addr, u32 val)
 {
 	CheckMemoryDebugEvent(DEBUG_EVENT_WRITE,AT,PROCNUM,addr,32,val);
+#ifdef __EMSCRIPTEN__
+	if (AT != MMU_AT_DEBUG)
+		wasmDebuggerShouldBreak(PROCNUM, 2, addr, 4, val);
+#endif
 
 	//special handling for DMA: discard writes to TCM
 	if(PROCNUM==ARMCPU_ARM9 && AT == MMU_AT_DMA)
