@@ -849,11 +849,17 @@ TEMPLATE static  u32 DESMUME_FASTCALL OP_PUSH(const u32 i)
 	 return MMU_aluMemCycles<PROCNUM>(3, c);
 }
 
+extern "C" void wasmEnterFunctionHook(int proc);
+
 TEMPLATE static  u32 DESMUME_FASTCALL OP_PUSH_LR(const u32 i)
 {
 	u32 adr = cpu->R[13] - 4;
 	u32 c = 0, j;
 	
+	if (PROCNUM == 0) {
+		wasmEnterFunctionHook(PROCNUM);
+	}
+
 	#ifdef HAVE_LUA
 	if (PROCNUM == 0) {
 		CallRegisteredLuaFunctions(LUACALL_ENTERFUNCTION);

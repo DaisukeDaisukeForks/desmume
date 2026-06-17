@@ -326,14 +326,8 @@ BackupDevice::BackupDevice()
 		}
 	}
 
-	_fpMC = new EMUFILE_FILE(_fileName, fexists?"rb+" : "wb+");
-	const bool fileCanReadWrite = (_fpMC->get_fp() != NULL);
-	if (!fileCanReadWrite)
-	{
-		delete _fpMC;
-		_fpMC = new EMUFILE_MEMORY();
-		printf("BackupDevice: WARNING! Failed to get read/write access to the save file! Will operate in RAM instead.\n");
-	}
+	extern EMUFILE_MEMORY* savFile;
+	_fpMC = savFile;
 	
 	if (!_fpMC->fail())
 	{
