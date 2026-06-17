@@ -274,6 +274,13 @@ BackupDevice::BackupDevice()
 		printf("BackupDevice: DeSmuME .dsv save file not found. Trying to load a .sav file.\n");
 		std::string tmp_fsav = std::string(filePathStr) + ".sav";
 
+#ifdef __EMSCRIPTEN__
+		extern EMUFILE_MEMORY* savFile;
+		_fpMC = savFile;
+		_fpMC->truncate(0);
+		if (import_raw(tmp_fsav.c_str(), 0))
+			fexists = true;
+#else
 		EMUFILE_FILE fpTmp = EMUFILE_FILE(tmp_fsav, "rb");
 		if (!fpTmp.fail())
 		{
@@ -324,6 +331,7 @@ BackupDevice::BackupDevice()
 				}
 			}
 		}
+#endif
 	}
 
 	extern EMUFILE_MEMORY* savFile;

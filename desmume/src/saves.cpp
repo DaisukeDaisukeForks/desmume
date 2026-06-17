@@ -1366,16 +1366,26 @@ static void loadstate()
 bool savestate_load(EMUFILE &is)
 {
 	SAV_silent_fail_flag = false;
+#ifdef __EMSCRIPTEN__
+	wasmLastStateChunk = 0;
+	wasmLastStatePhase = 1;
+#endif
 	char header[16];
 	is.fread(header,16);
 	if (is.fail() || memcmp(header,magic,16))
 		return false;
+#ifdef __EMSCRIPTEN__
+	wasmLastStatePhase = 2;
+#endif
 
 	u32 ssversion,len,comprlen;
 	if (!is.read_32LE(ssversion)) return false;
 	if (!is.read_32LE(_DESMUME_version)) return false;
 	if (!is.read_32LE(len)) return false;
 	if (!is.read_32LE(comprlen)) return false;
+#ifdef __EMSCRIPTEN__
+	wasmLastStatePhase = 3;
+#endif
 
 	if (ssversion != SAVESTATE_VERSION) return false;
 
@@ -1383,6 +1393,9 @@ bool savestate_load(EMUFILE &is)
 
 	if (comprlen != 0xFFFFFFFF)
 	{
+#ifdef __EMSCRIPTEN__
+		wasmLastStatePhase = 4;
+#endif
 #ifndef HAVE_LIBZ
 		//without libz, we can't decompress this savestate
 		return false;
@@ -1396,6 +1409,9 @@ bool savestate_load(EMUFILE &is)
 		int error = uncompress((u8*)&buf[0],&uncomprlen,(u8*)&cbuf[0],comprlen);
 		if (error != Z_OK || uncomprlen != len)
 			return false;
+#endif
+#ifdef __EMSCRIPTEN__
+		wasmLastStatePhase = 5;
 #endif
 	}
 	else
@@ -1412,7 +1428,13 @@ bool savestate_load(EMUFILE &is)
 	//the full reset wipes more things, so we can make sure that they are being restored correctly
 	extern bool _HACK_DONT_STOPMOVIE;
 	_HACK_DONT_STOPMOVIE = true;
+#ifdef __EMSCRIPTEN__
+	wasmLastStatePhase = 6;
+#endif
 	NDS_Reset();
+#ifdef __EMSCRIPTEN__
+	wasmLastStatePhase = 7;
+#endif
 	_HACK_DONT_STOPMOVIE = false;
 
 	//reset some options to their old defaults which werent saved
@@ -1425,7 +1447,13 @@ bool savestate_load(EMUFILE &is)
 	//SPU_Reset();
 
 	EMUFILE_MEMORY mstemp(&buf);
+#ifdef __EMSCRIPTEN__
+	wasmLastStatePhase = 8;
+#endif
 	bool x = ReadStateChunks(mstemp,(s32)len);
+#ifdef __EMSCRIPTEN__
+	wasmLastStatePhase = 9;
+#endif
 
 	if (!x && !SAV_silent_fail_flag)
 	{
@@ -1433,7 +1461,13 @@ bool savestate_load(EMUFILE &is)
 		return false;
 	}
 
+#ifdef __EMSCRIPTEN__
+	wasmLastStatePhase = 20;
+#endif
 	loadstate();
+#ifdef __EMSCRIPTEN__
+	wasmLastStatePhase = 21;
+#endif
 
 	if (nds.ConsoleType != CommonSettings.ConsoleType)
 	{
