@@ -276,10 +276,14 @@ BackupDevice::BackupDevice()
 
 #ifdef __EMSCRIPTEN__
 		extern EMUFILE_MEMORY* savFile;
-		_fpMC = savFile;
-		_fpMC->truncate(0);
-		if (import_raw(tmp_fsav.c_str(), 0))
-			fexists = true;
+		u32 sz = get_save_raw_size(tmp_fsav.c_str());
+		if (sz != 0xFFFFFFFF)
+		{
+			_fpMC = savFile;
+			_fpMC->truncate(0);
+			if (import_raw(tmp_fsav.c_str(), sz))
+				fexists = true;
+		}
 #else
 		EMUFILE_FILE fpTmp = EMUFILE_FILE(tmp_fsav, "rb");
 		if (!fpTmp.fail())
