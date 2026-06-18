@@ -269,6 +269,21 @@ BackupDevice::BackupDevice()
 		}
 	}
 
+#ifdef __EMSCRIPTEN__
+	if (fexists)
+	{
+		extern EMUFILE_MEMORY* savFile;
+		_fpMC = savFile;
+		_fpMC->truncate(0);
+		_fpMC->fseek(0, SEEK_SET);
+		if (!import_dsv(_fileName.c_str()))
+		{
+			_fpMC->truncate(0);
+			fexists = false;
+		}
+	}
+#endif
+
 	if (!fexists)
 	{
 		printf("BackupDevice: DeSmuME .dsv save file not found. Trying to load a .sav file.\n");
