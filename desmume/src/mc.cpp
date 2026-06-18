@@ -415,7 +415,9 @@ BackupDevice::BackupDevice()
 
 BackupDevice::~BackupDevice()
 {
-	delete this->_fpMC;
+	// Wasm 版では _fpMC は wasm-port.cpp のグローバル savFile を指している。
+	// savFile のライフタイムは wasm-port.cpp が管理するため、ここで delete しない。
+	// delete すると reconstruct(&MMU_new) 後に dangling pointer になりクラッシュする。
 	this->_fpMC = NULL;
 }
 
