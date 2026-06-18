@@ -639,7 +639,6 @@ void BackupDevice::reset()
 void BackupDevice::close_rom()
 {
 	this->_fpMC->fflush();
-	delete this->_fpMC;
 	this->_fpMC = NULL;
 }
 
