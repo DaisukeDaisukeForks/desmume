@@ -229,7 +229,11 @@ BackupDevice::BackupDevice()
 
 	char filePathStr[MAX_PATH] = {0};
 	memset(filePathStr, 0, MAX_PATH);
+#ifdef __EMSCRIPTEN__
+	snprintf(filePathStr, MAX_PATH, "%s", path.GetRomNameWithoutExtension().c_str());
+#else
 	path.getpathnoext(path.BATTERY, filePathStr);
+#endif
 	_fileName = std::string(filePathStr) + ".dsv";
 
 	MCLOG("MC: %s\n", _fileName.c_str());
@@ -362,7 +366,8 @@ BackupDevice::BackupDevice()
 		if (_fsize < saveSizes[0])
 			_fpMC->truncate(0);
 
-		if (readFooter() == 0)
+		const int footerStatus = readFooter();
+		if (footerStatus == 0)
 			_fsize -= BackupDevice::GetDSVFooterSize();
 		else
 		{
