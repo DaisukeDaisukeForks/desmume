@@ -29,6 +29,8 @@
 #include "MMU_timing.h"
 #include "utils/bits.h"
 
+extern "C" void wasmTraceControlFlowHook(int proc, int kind, int reg, u32 target);
+
 #define cpu (&ARMPROC)
 #define TEMPLATE template<int PROCNUM> 
 
@@ -270,6 +272,7 @@ TEMPLATE static  u32 DESMUME_FASTCALL OP_ADD_SPE(const u32 i)
 	if(Rd==15)
 	{
 		cpu->next_instruction = cpu->R[15];
+		wasmTraceControlFlowHook(PROCNUM, 2, REG_POS(i, 3), cpu->next_instruction);
 		return 3;
 	}
 		
@@ -927,8 +930,8 @@ TEMPLATE static  u32 DESMUME_FASTCALL OP_POP_PC(const u32 i)
 
 	cpu->R[15] = v & 0xFFFFFFFE;
 	cpu->next_instruction = cpu->R[15];
-	
 	cpu->R[13] = adr + 4;
+	wasmTraceControlFlowHook(PROCNUM, 5, 15, cpu->next_instruction);
 	 return MMU_aluMemCycles<PROCNUM>(5, c);
 }
 
@@ -1157,6 +1160,7 @@ TEMPLATE static  u32 DESMUME_FASTCALL OP_BX_THUMB(const u32 i)
 	cpu->CPSR.bits.T = BIT0(Rm);
 	cpu->R[15] = (Rm & (0xFFFFFFFC|(1<<cpu->CPSR.bits.T)));
 	cpu->next_instruction = cpu->R[15];
+	wasmTraceControlFlowHook(PROCNUM, 1, REG_POS(i, 3), cpu->next_instruction);
 #endif
 	return 3;
 }
