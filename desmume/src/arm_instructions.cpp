@@ -36,6 +36,8 @@
 #include "MMU_timing.h"
 #include "bios.h"
 
+extern "C" void wasmTraceControlFlowHook(int proc, int kind, int reg, u32 target);
+
 #define cpu (&ARMPROC)
 #define TEMPLATE template<int PROCNUM> 
 
@@ -560,6 +562,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_EOR_S_IMM_VAL(const u32 i)
 		armcpu_changeCPSR(); \
 		cpu->R[15] &= (0xFFFFFFFC|(((u32)cpu->CPSR.bits.T)<<1)); \
 		cpu->next_instruction = cpu->R[15]; \
+		wasmTraceControlFlowHook(PROCNUM, 4, REG_POS(i, 0), cpu->next_instruction); \
 		return b; \
 	} \
 	cpu->CPSR.bits.N = BIT31(cpu->R[REG_POS(i,12)]); \
@@ -1883,6 +1886,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_ORR_S_IMM_VAL(const u32 i)
 	if(REG_POS(i,12)==15) \
 	{ \
 		cpu->next_instruction = shift_op; \
+		wasmTraceControlFlowHook(PROCNUM, 2, REG_POS(i, 0), cpu->next_instruction); \
 		return b; \
 	} \
 	return a;
@@ -1897,6 +1901,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_ORR_S_IMM_VAL(const u32 i)
 		armcpu_changeCPSR(); \
 		cpu->R[15] &= (0xFFFFFFFC|(((u32)cpu->CPSR.bits.T)<<1)); \
 		cpu->next_instruction = cpu->R[15]; \
+		wasmTraceControlFlowHook(PROCNUM, 3, REG_POS(i, 0), cpu->next_instruction); \
 		return b; \
 	} \
 	cpu->CPSR.bits.C = c; \
@@ -3093,6 +3098,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_BX(const u32 i)
 	cpu->CPSR.bits.T = BIT0(tmp);
 	cpu->R[15] = tmp & (0xFFFFFFFC|(cpu->CPSR.bits.T<<1));
 	cpu->next_instruction = cpu->R[15];
+	wasmTraceControlFlowHook(PROCNUM, 1, REG_POS(i, 0), cpu->next_instruction);
 	return 3;
 }
 
@@ -4757,6 +4763,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMIA(const u32 i)
 		
 		//start += 4;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 5, 15, cpu->next_instruction);
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 
 		// debugging
@@ -4805,6 +4812,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMIB(const u32 i)
 		else
 			registres[15] = tmp & 0xFFFFFFFC;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 5, 15, cpu->next_instruction);
 
 		// debugging
 		if (cpu->runToRet) {
@@ -4837,6 +4845,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMDA(const u32 i)
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 		start -= 4;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 5, 15, cpu->next_instruction);
 
 		// debugging
 		if (cpu->runToRet) {
@@ -4883,6 +4892,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMDB(const u32 i)
 		else
 			registres[15] = tmp & 0xFFFFFFFC;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 5, 15, cpu->next_instruction);
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 
 		// debugging
@@ -4947,6 +4957,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMIA_W(const u32 i)
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 		start += 4;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 5, 15, cpu->next_instruction);
 
 		// debugging
 		if (cpu->runToRet) {
@@ -5003,6 +5014,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMIB_W(const u32 i)
 		else
 			registres[15] = tmp & 0xFFFFFFFC;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 5, 15, cpu->next_instruction);
 
 		// debugging
 		if (cpu->runToRet) {
@@ -5042,6 +5054,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMDA_W(const u32 i)
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 		start -= 4;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 5, 15, cpu->next_instruction);
 
 		// debugging
 		if (cpu->runToRet) {
@@ -5096,6 +5109,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMDB_W(const u32 i)
 		else
 			registres[15] = tmp & 0xFFFFFFFC;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 5, 15, cpu->next_instruction);
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 
 		// debugging
@@ -5241,6 +5255,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMIB2(const u32 i)
 		cpu->CPSR=SPSR;
 		armcpu_changeCPSR();
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 6, 15, cpu->next_instruction);
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 
 		// debugging
@@ -5280,6 +5295,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMDA2(const u32 i)
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 		start -= 4;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 6, 15, cpu->next_instruction);
 
 		// debugging
 		if (cpu->runToRet) {
@@ -5343,6 +5359,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMDB2(const u32 i)
 		cpu->CPSR = cpu->SPSR;
 		armcpu_changeCPSR();
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 6, 15, cpu->next_instruction);
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 
 		// debugging
@@ -5434,6 +5451,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMIA2_W(const u32 i)
 	cpu->CPSR=SPSR;
 	armcpu_changeCPSR();
 	cpu->next_instruction = registres[15];
+	wasmTraceControlFlowHook(PROCNUM, 6, 15, cpu->next_instruction);
 	c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 
 	return MMU_aluMemCycles<PROCNUM>(2, c);
@@ -5489,6 +5507,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMIB2_W(const u32 i)
 	cpu->CPSR = cpu->SPSR;
 	armcpu_changeCPSR();
 	cpu->next_instruction = registres[15];
+	wasmTraceControlFlowHook(PROCNUM, 6, 15, cpu->next_instruction);
 	SPSR = cpu->SPSR;
 	armcpu_switchMode(cpu, SPSR.bits.mode);
 	cpu->CPSR=SPSR;
@@ -5523,6 +5542,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMDA2_W(const u32 i)
 		c += MMU_memAccessCycles<PROCNUM,32,MMU_AD_READ>(start);
 		start -= 4;
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 6, 15, cpu->next_instruction);
 	}
 
 	OP_L_DA(14, start);
@@ -5585,6 +5605,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_LDMDB2_W(const u32 i)
 		cpu->CPSR = cpu->SPSR;
 		armcpu_changeCPSR();
 		cpu->next_instruction = registres[15];
+		wasmTraceControlFlowHook(PROCNUM, 6, 15, cpu->next_instruction);
 	}
 
 	OP_L_DB(14, start);
