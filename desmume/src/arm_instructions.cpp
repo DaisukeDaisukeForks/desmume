@@ -5747,11 +5747,17 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_STMDA_W(const u32 i)
 	return MMU_aluMemCycles<PROCNUM>(1, c);
 }
 
+extern "C" void wasmEnterFunctionHook(int proc);
+
 TEMPLATE static u32 DESMUME_FASTCALL  OP_STMDB_W(const u32 i)
 {
 	u32 c = 0, b;
 	u32 start = cpu->R[REG_POS(i,16)];
 	
+	if (REG_POS(i, 16) == 13 && BIT_N(i, 14) && PROCNUM == 0) {
+		wasmEnterFunctionHook(PROCNUM);
+	}
+
 	#ifdef HAVE_LUA
 	if (REG_POS(i, 16) == 13 && BIT_N(i, 14) && PROCNUM == 0) {
 		CallRegisteredLuaFunctions(LUACALL_ENTERFUNCTION);

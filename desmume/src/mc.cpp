@@ -229,7 +229,11 @@ BackupDevice::BackupDevice()
 
 	char filePathStr[MAX_PATH] = {0};
 	memset(filePathStr, 0, MAX_PATH);
+#ifdef __EMSCRIPTEN__
+	snprintf(filePathStr, MAX_PATH, "%s", path.GetRomNameWithoutExtension().c_str());
+#else
 	path.getpathnoext(path.BATTERY, filePathStr);
+#endif
 	_fileName = std::string(filePathStr) + ".dsv";
 
 	MCLOG("MC: %s\n", _fileName.c_str());
@@ -269,11 +273,37 @@ BackupDevice::BackupDevice()
 		}
 	}
 
+#ifdef __EMSCRIPTEN__
+	if (fexists)
+	{
+		extern EMUFILE_MEMORY* savFile;
+		_fpMC = savFile;
+		_fpMC->truncate(0);
+		_fpMC->fseek(0, SEEK_SET);
+		if (!import_dsv(_fileName.c_str()))
+		{
+			_fpMC->truncate(0);
+			fexists = false;
+		}
+	}
+#endif
+
 	if (!fexists)
 	{
 		printf("BackupDevice: DeSmuME .dsv save file not found. Trying to load a .sav file.\n");
 		std::string tmp_fsav = std::string(filePathStr) + ".sav";
 
+#ifdef __EMSCRIPTEN__
+		extern EMUFILE_MEMORY* savFile;
+		u32 sz = get_save_raw_size(tmp_fsav.c_str());
+		if (sz != 0xFFFFFFFF)
+		{
+			_fpMC = savFile;
+			_fpMC->truncate(0);
+			if (import_raw(tmp_fsav.c_str(), sz))
+				fexists = true;
+		}
+#else
 		EMUFILE_FILE fpTmp = EMUFILE_FILE(tmp_fsav, "rb");
 		if (!fpTmp.fail())
 		{
@@ -324,16 +354,11 @@ BackupDevice::BackupDevice()
 				}
 			}
 		}
+#endif
 	}
 
-	_fpMC = new EMUFILE_FILE(_fileName, fexists?"rb+" : "wb+");
-	const bool fileCanReadWrite = (_fpMC->get_fp() != NULL);
-	if (!fileCanReadWrite)
-	{
-		delete _fpMC;
-		_fpMC = new EMUFILE_MEMORY();
-		printf("BackupDevice: WARNING! Failed to get read/write access to the save file! Will operate in RAM instead.\n");
-	}
+	extern EMUFILE_MEMORY* savFile;
+	_fpMC = savFile;
 	
 	if (!_fpMC->fail())
 	{
@@ -341,7 +366,8 @@ BackupDevice::BackupDevice()
 		if (_fsize < saveSizes[0])
 			_fpMC->truncate(0);
 
-		if (readFooter() == 0)
+		const int footerStatus = readFooter();
+		if (footerStatus == 0)
 			_fsize -= BackupDevice::GetDSVFooterSize();
 		else
 		{
@@ -409,7 +435,9 @@ BackupDevice::BackupDevice()
 
 BackupDevice::~BackupDevice()
 {
-	delete this->_fpMC;
+	// Wasm 版では _fpMC は wasm-port.cpp のグローバル savFile を指している。
+	// savFile のライフタイムは wasm-port.cpp が管理するため、ここで delete しない。
+	// delete すると reconstruct(&MMU_new) 後に dangling pointer になりクラッシュする。
 	this->_fpMC = NULL;
 }
 
@@ -631,7 +659,6 @@ void BackupDevice::reset()
 void BackupDevice::close_rom()
 {
 	this->_fpMC->fflush();
-	delete this->_fpMC;
 	this->_fpMC = NULL;
 }
 
