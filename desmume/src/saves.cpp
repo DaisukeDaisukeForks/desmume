@@ -80,6 +80,13 @@ static const char* magic = "DeSmuME SState\0";
 #ifdef __EMSCRIPTEN__
 extern "C" int wasmLastStateChunk = 0;
 extern "C" int wasmLastStatePhase = 0;
+extern "C" void wasmDebuggerSetInternalSuspend(int enabled);
+
+struct WasmDebuggerSuspendGuard
+{
+	WasmDebuggerSuspendGuard() { wasmDebuggerSetInternalSuspend(1); }
+	~WasmDebuggerSuspendGuard() { wasmDebuggerSetInternalSuspend(0); }
+};
 #endif
 
 //a savestate chunk loader can set this if it wants to permit a silent failure (for compatibility)
@@ -1422,6 +1429,9 @@ bool savestate_load(EMUFILE &is)
 	//GO!! READ THE SAVESTATE
 	//THERE IS NO GOING BACK NOW
 	//reset the emulator first to clean out the host's state
+#ifdef __EMSCRIPTEN__
+	WasmDebuggerSuspendGuard wasmDebuggerSuspendGuard;
+#endif
 
 	//while the series of resets below should work,
 	//we are testing the robustness of the savestate system with this full reset.
