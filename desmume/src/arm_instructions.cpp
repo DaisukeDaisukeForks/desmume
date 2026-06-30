@@ -37,6 +37,7 @@
 #include "bios.h"
 
 extern "C" void wasmTraceControlFlowHook(int proc, int kind, int reg, u32 target);
+extern "C" void wasmCallFunctionHook(int proc, u32 target, u32 returnAddress);
 
 #define cpu (&ARMPROC)
 #define TEMPLATE template<int PROCNUM> 
@@ -3110,6 +3111,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_BLX_REG(const u32 i)
 	cpu->CPSR.bits.T = BIT0(tmp);
 	cpu->R[15] = tmp & (0xFFFFFFFC|(cpu->CPSR.bits.T<<1));
 	cpu->next_instruction = cpu->R[15];
+	wasmCallFunctionHook(PROCNUM, cpu->next_instruction, cpu->R[14]);
 	wasmTraceControlFlowHook(PROCNUM, 7, REG_POS(i, 0), cpu->next_instruction);
 	if (cpu->runToRet) {
 		cpu->runToRet = false;
@@ -3140,6 +3142,7 @@ TEMPLATE static u32 DESMUME_FASTCALL OP_B(const u32 i)
 	cpu->R[15] += (off<<2);
 	cpu->R[15] &= (0xFFFFFFFC|(cpu->CPSR.bits.T<<1));
 	cpu->next_instruction = cpu->R[15];
+	if(CONDITION(i)==0xF) wasmCallFunctionHook(PROCNUM, cpu->next_instruction, cpu->R[14]);
 
 	return 3;
 }
@@ -3156,6 +3159,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_BL(const u32 i)
 	cpu->R[15] += (off<<2);
 	cpu->R[15] &= (0xFFFFFFFC|(cpu->CPSR.bits.T<<1));
 	cpu->next_instruction = cpu->R[15];
+	wasmCallFunctionHook(PROCNUM, cpu->next_instruction, cpu->R[14]);
 	if (cpu->runToRet) {
 		cpu->runToRet = false;
 		cpu->runToRetTmp = cpu->next_instruction + 4;

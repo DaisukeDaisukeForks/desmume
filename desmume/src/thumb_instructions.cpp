@@ -30,6 +30,7 @@
 #include "utils/bits.h"
 
 extern "C" void wasmTraceControlFlowHook(int proc, int kind, int reg, u32 target);
+extern "C" void wasmCallFunctionHook(int proc, u32 target, u32 returnAddress);
 
 #define cpu (&ARMPROC)
 #define TEMPLATE template<int PROCNUM> 
@@ -1107,6 +1108,7 @@ TEMPLATE static  u32 DESMUME_FASTCALL OP_BLX(const u32 i)
 	cpu->R[14] = cpu->next_instruction | 1;
 	cpu->next_instruction = cpu->R[15];
 	cpu->CPSR.bits.T = 0;
+	wasmCallFunctionHook(PROCNUM, cpu->next_instruction, cpu->R[14]);
 	return 3;
 }
 
@@ -1121,6 +1123,7 @@ TEMPLATE static  u32 DESMUME_FASTCALL OP_BL_11(const u32 i)
 	cpu->R[15] = (cpu->R[14] + ((i&0x7FF)<<1));
 	cpu->R[14] = cpu->next_instruction | 1;
 	cpu->next_instruction = cpu->R[15];
+	wasmCallFunctionHook(PROCNUM, cpu->next_instruction, cpu->R[14]);
 	return 4;
 }
 
@@ -1172,6 +1175,7 @@ TEMPLATE static  u32 DESMUME_FASTCALL OP_BLX_THUMB(const u32 i)
 	cpu->R[15] = Rm & 0xFFFFFFFE;
 	cpu->R[14] = cpu->next_instruction | 1;
 	cpu->next_instruction = cpu->R[15];
+	wasmCallFunctionHook(PROCNUM, cpu->next_instruction, cpu->R[14]);
 	wasmTraceControlFlowHook(PROCNUM, 7, REG_POS(i, 3), cpu->next_instruction);
 	
 	return 4;
