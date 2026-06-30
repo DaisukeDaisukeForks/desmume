@@ -1172,6 +1172,7 @@ TEMPLATE static  u32 DESMUME_FASTCALL OP_BLX_THUMB(const u32 i)
 	cpu->R[15] = Rm & 0xFFFFFFFE;
 	cpu->R[14] = cpu->next_instruction | 1;
 	cpu->next_instruction = cpu->R[15];
+	wasmTraceControlFlowHook(PROCNUM, 7, REG_POS(i, 3), cpu->next_instruction);
 	
 	return 4;
 }

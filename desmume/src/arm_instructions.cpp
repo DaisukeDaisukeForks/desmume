@@ -3110,6 +3110,7 @@ TEMPLATE static u32 DESMUME_FASTCALL  OP_BLX_REG(const u32 i)
 	cpu->CPSR.bits.T = BIT0(tmp);
 	cpu->R[15] = tmp & (0xFFFFFFFC|(cpu->CPSR.bits.T<<1));
 	cpu->next_instruction = cpu->R[15];
+	wasmTraceControlFlowHook(PROCNUM, 7, REG_POS(i, 0), cpu->next_instruction);
 	if (cpu->runToRet) {
 		cpu->runToRet = false;
 		cpu->runToRetTmp = cpu->next_instruction + 4;
