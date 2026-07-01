@@ -41,6 +41,7 @@
 
 #ifdef __EMSCRIPTEN__
 extern "C" int wasmDebuggerShouldBreak(int proc, int kind, u32 address, int size, u32 value);
+extern "C" void wasmTraceIrqEnterHook(int proc, u32 sourcePc, u32 vectorPc, u32 resumePc, u32 irqSp, u32 irqCpsr);
 #endif
 
 template<u32> static u32 armcpu_prefetch();
@@ -529,6 +530,10 @@ void armcpu_exception(armcpu_t *cpu, u32 number)
 	armcpu_changeCPSR();
 	cpu->R[15] = cpu->intVector + number;
 	cpu->next_instruction = cpu->R[15];
+#ifdef __EMSCRIPTEN__
+	if (number == EXCEPTION_IRQ)
+		wasmTraceIrqEnterHook(cpu->proc_ID == ARMCPU_ARM7 ? 1 : 0, tmp.bits.T ? cpu->instruct_adr | 1 : cpu->instruct_adr, cpu->next_instruction, cpu->R[14], cpu->R[13], cpu->CPSR.val);
+#endif
 	printf("armcpu_exception!\n");
 	//extern bool dolog;
 	//dolog=true;
@@ -547,6 +552,8 @@ BOOL armcpu_irqException(armcpu_t *armcpu)
 //#endif
       
 	tmp = armcpu->CPSR;
+	const u32 sourcePc = tmp.bits.T ? armcpu->instruct_adr | 1 : armcpu->instruct_adr;
+	const u32 vectorPc = armcpu->intVector + 0x18;
 	armcpu_switchMode(armcpu, IRQ);
 
 	//TODO - remove GDB specific code
@@ -558,12 +565,15 @@ BOOL armcpu_irqException(armcpu_t *armcpu)
 	armcpu->SPSR = tmp;
 	armcpu->CPSR.bits.T = 0;
 	armcpu->CPSR.bits.I = 1;
-	armcpu->next_instruction = armcpu->intVector + 0x18;
+	armcpu->next_instruction = vectorPc;
 	armcpu->freeze &= ~CPU_FREEZE_IRQ_IE_IF;
 
 	//must retain invariant of having next instruction to be executed prefetched
 	//(yucky)
 	armcpu_prefetch(armcpu);
+#ifdef __EMSCRIPTEN__
+	wasmTraceIrqEnterHook(armcpu->proc_ID == ARMCPU_ARM7 ? 1 : 0, sourcePc, vectorPc, armcpu->R[14] - 4, armcpu->R[13], armcpu->CPSR.val);
+#endif
 
 	return TRUE;
 }
