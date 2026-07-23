@@ -338,6 +338,7 @@ void armcpu_changeCPSR();
 
 int armcpu_new( armcpu_t *armcpu, u32 id);
 void armcpu_init(armcpu_t *armcpu, u32 adr);
+void armcpu_set_pc(armcpu_t *armcpu, u32 adr);
 u32 armcpu_switchMode(armcpu_t *armcpu, u8 mode);
 
 

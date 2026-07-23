@@ -281,6 +281,15 @@ void armcpu_init(armcpu_t *armcpu, u32 adr)
 //#endif
 }
 
+void armcpu_set_pc(armcpu_t *armcpu, u32 adr)
+{
+	const bool thumb = BIT0(adr) || armcpu->CPSR.bits.T;
+	armcpu->CPSR.bits.T = thumb ? 1 : 0;
+	armcpu->next_instruction = thumb ? (adr & 0xFFFFFFFE) : (adr & 0xFFFFFFFC);
+	armcpu_changeCPSR();
+	armcpu_prefetch(armcpu);
+}
+
 u32 armcpu_switchMode(armcpu_t *armcpu, u8 mode)
 {
 	u32 oldmode = armcpu->CPSR.bits.mode;
